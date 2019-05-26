@@ -1,0 +1,109 @@
+# LAMMPS Strain Script - Honeycomb Reentrante não-Hidrogenado 
+# Versão 01.1.19
+
+# Jose Carlos Salles Junior
+# IMECC / IFGW - Unicamp
+# IC/Msc
+
+# BLCK Tech
+# CTO
+
+# Campinas/SP - Brazil - 2019
+
+# jrs.unicamp@gmail.com
+
+# Step 1 
+
+log		       honeycomb-reent-part-1.log		  
+units		     metal
+echo		     both						                       
+boundary	   p p p
+dimension	   3
+atom_style	 full
+read_data	   HR1.data 		              
+neighbor	   0.5 bin
+pair_style	 airebo 3.0 1 1
+pair_coeff	 * * CH.airebo C
+run_style	   verlet
+
+reset_timestep	0
+timestep	      0.0005
+
+velocity	      all create 1 2019 mom yes rot no
+fix       	    1 all npt temp 1.0 1.0 0.1 x 0 0 0.5 y 0 0 0.5 drag 1
+
+thermo		      100
+thermo_style	  custom step temp press lx ly lz pxx pyy pzz
+dump		        1 all xyz 100 honeycomb-reent-part-1-equilibration.xyz
+dump_modify	    1 flush yes element C
+dump		        2 all xyz 100 honeycomb-reent-part-1-equi+str.xyz
+dump_modify	    2 flush yes element C
+
+minimize	      1.0e-8 1.0e-8 1000 1000
+
+# Step 2 
+
+run		      10000
+write_data 	honeycomb-reent-part-1-backup-equi.data
+unfix		    1
+undump		  1
+
+log		      honeycomb-reent-STR.log		
+
+# Step 3 
+
+variable 	  tmy equal "ly"
+variable 	  L0y equal ${tmy}
+print 		  "Comprimento Inicial, L0y: ${L0y}"
+
+variable 	  tmx equal "lx"
+variable 	  L0x equal ${tmx}
+print 		  "Comprimento Inicial, L0x: ${L0x}"
+variable	  delta equal 0.05*ly
+
+variable 	  vs equal ${delta}/50  				
+
+
+# Step 4 - strain
+
+#compute        stpa mobile stress/atom
+#compute       	stgb mobile reduce sum c_stpa[1]
+#variable       sxx equal c_stgb/vol
+
+variable	      ey equal step*0.0005*${vs}
+
+fix		          1 all npt temp 1.0 1.0 0.1 x 0 0 0.5 drag 1
+fix 		        4 all deform 1 y vel ${vs} units box remap x
+
+reset_timestep	0
+timestep	      0.0005
+thermo		      100
+thermo_style	  custom step temp press vol lx ly lz pxx pyy pzz 
+dump		        1 all xyz 100 honeycomb-reent-STR-strain.xyz
+dump_modify	    1 flush yes element C
+
+run		          2000000
+
+# Step 5 
+
+minimize	      1.0e-8 1.0e-8 100 100
+
+variable 	      tmyf equal "ly"
+variable 	      LFy equal ${tmyf}
+print 		      "Comprimento Final, LFy: ${LFy}"
+
+variable 	      tmxf equal "lx"
+variable 	      LFx equal ${tmxf}
+print 		      "Comprimento Final, LFx: ${LFx}"
+
+write_data 	    [out]honeycomb-reent-STR.lammpstrj
+
+
+variable	      ex equal (${LFx}-${L0x})/${L0x}
+variable	      ey equal (${LFy}-${L0y})/${L0y}
+variable	      Rp equal ${ex}/${ey}
+print		        "Rp = ${Rp}"
+
+# Step 6
+
+print 		      "Simulation honeycomb-reent-STR Done!"
